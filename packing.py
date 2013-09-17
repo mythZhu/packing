@@ -3,20 +3,24 @@ import shutil
 import tempfile
 import subprocess
 
-__all__ = ['packing', 
-           'make_archive', 
+from distutils.spawn import find_executable
+
+__all__ = ['packing',
+           'make_archive',
            'get_archive_formats',
            'register_archive_format',
            'unregister_archive_format']
 
-def _call_external(*cmdln_or_args):
+def _call_external(*cmdln):
     """ Wapper for subprocess calls.
 
-    'cmdln_or_args' will be joined before execution.
+    'cmdln[0]' is just the program to run. 'cmdln[1:]' is the rest of
+    its options and arguments. They will be joined before execution.
     Return value is a tuple (retcode, outdata, errdata).
     """
-    cmdln = ' '.join(cmdln_or_args)
-    proc = subprocess.Popen(cmdln, shell=True,
+    exe = find_executable(cmdln[0]) or cmdln[0]
+    cmd = ' '.join((exe,) + cmdln[1:])
+    proc = subprocess.Popen(cmd, shell=True,
                             stdout=subprocess.PIPE, 
                             stderr=subprocess.STDOUT)
     (outdata, errdata) = proc.communicate()
@@ -26,7 +30,8 @@ def _call_external(*cmdln_or_args):
 def _do_gzip(output_name, input_name):
     """ Compress the file with 'gzip' utility.
     """
-    _call_external('gzip', '--force', input_name)
+    prog = find_executable('pigz') or 'gzip'
+    _call_external(prog, '--force', input_name)
 
     gzfile_name = input_name + '.gz'
     if os.path.exists(gzfile_name):
@@ -37,7 +42,8 @@ def _do_gzip(output_name, input_name):
 def _do_bzip2(output_name, input_name):
     """ Compress the file with 'bzip2' utility.
     """
-    _call_external('bzip2', '--force', input_name)
+    prog = find_executable('pbzip2') or 'bzip2'
+    _call_external(prog, '--force', input_name)
 
     bzfile_name = input_name + '.bz2'
     if os.path.exists(bzfile_name):
@@ -60,7 +66,7 @@ def _make_tarball(archive_name, target_name, compressor=None):
     """ Create a tar file from all the files under 'target_name' or itself.
 
     'compressor' is a function to compress the tar file. It must accept
-    at least two arguments including 'input_name' and 'output_name' and 
+    at least two arguments including 'input_name' and 'output_name' and
     return boolean value indicating the compressor result.
     """
     archive_dir = os.path.dirname(archive_name)
@@ -146,7 +152,7 @@ def get_archive_formats():
 def register_archive_format(name, function, suffixs, extra_kwargs=None):
     """ Registers an archive format.
 
-    'name' is the name of the format. 'function' is the callable that will 
+    'name' is the name of the format. 'function' is the callable that will
     be used to create archives. 'extra_kwargs' is a dictionary that will 
     be passed as extend arguments to the callable, if provided. 'suffixs'
     is a sequence containing extensions belong to this format.
