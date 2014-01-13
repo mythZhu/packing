@@ -18,6 +18,9 @@ def _call_external(*cmdln):
     its options and arguments. They will be joined before execution.
     Return value is a tuple (retcode, outdata, errdata).
     """
+    if len(cmdln) < 1:
+        raise TypeError, "_call_external() takes at least 1 arguments"
+
     exe = find_executable(cmdln[0]) or cmdln[0]
     cmd = ' '.join((exe,) + cmdln[1:])
     proc = subprocess.Popen(cmd, shell=True,
@@ -54,7 +57,7 @@ def _do_bzip2(output_name, input_name):
 def _do_lzop(output_name, input_name):
     """ Compress the file with 'lzop' utility.
     """
-    prog = find_executable('lzop') or 'lzop'
+    prog = 'lzop'
     _call_external(prog, '--force', '--delete', input_name)
 
     lzofile_name = input_name + '.lzo'
@@ -88,7 +91,7 @@ def _make_tarball(archive_name, target_name, compressor=None):
 
     tar.close()
 
-    if compressor:
+    if compressor and callable(compressor):
         compressor(output_name=archive_name, input_name=tarball_name)
     else:
         shutil.move(tarball_name, archive_name)
@@ -194,6 +197,9 @@ def make_archive(archive_name, target_name):
         func, kwargs = _ARCHIVE_FORMATS[archive_format]
     except KeyError:
         raise ValueError, "unknown archive format '%s'" % archive_format
+
+    if not os.path.exists(target_name):
+        raise OSError, "no such file or directory '%s'" % target_name
 
     return func(archive_name, target_name, **kwargs)
 
