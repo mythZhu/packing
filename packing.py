@@ -21,7 +21,7 @@ def _call_external(*cmdln):
     exe = find_executable(cmdln[0]) or cmdln[0]
     cmd = ' '.join((exe,) + cmdln[1:])
     proc = subprocess.Popen(cmd, shell=True,
-                            stdout=subprocess.PIPE, 
+                            stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
     (outdata, errdata) = proc.communicate()
 
@@ -54,7 +54,8 @@ def _do_bzip2(output_name, input_name):
 def _do_lzop(output_name, input_name):
     """ Compress the file with 'lzop' utility.
     """
-    _call_external('lzop', '--force', '--delete', input_name)
+    prog = find_executable('lzop') or 'lzop'
+    _call_external(prog, '--force', '--delete', input_name)
 
     lzofile_name = input_name + '.lzo'
     if os.path.exists(lzofile_name):
@@ -153,7 +154,7 @@ def register_archive_format(name, function, suffixs, extra_kwargs=None):
     """ Registers an archive format.
 
     'name' is the name of the format. 'function' is the callable that will
-    be used to create archives. 'extra_kwargs' is a dictionary that will 
+    be used to create archives. 'extra_kwargs' is a dictionary that will
     be passed as extend arguments to the callable, if provided. 'suffixs'
     is a sequence containing extensions belong to this format.
     """
