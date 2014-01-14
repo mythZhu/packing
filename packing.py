@@ -124,7 +124,7 @@ def _make_zipfile(archive_name, target_name):
 
     return os.path.exists(archive_name)
 
-_ARCHIVE_SUFFIXS = {
+_ARCHIVE_SUFFIXES = {
     'zip'   : ['.zip'],
     'tar'   : ['.tar'],
     'lzotar': ['.tzo', '.tar.lzo'],
@@ -140,6 +140,19 @@ _ARCHIVE_FORMATS = {
     'bztar' : ( _make_tarball, {'compressor' : _do_bzip2} ),
 }
 
+def get_archive_suffixes(format=None):
+    """ Return suffixes list of supported format.
+    """
+    suffixes = []
+
+    if not format is None:
+        return _ARCHIVE_SUFFIXES.get(format, [])
+
+    for val in _ARCHIVE_SUFFIXES.itervalues():
+        suffixes.extend(val)
+
+    return suffixes
+
 def get_archive_formats():
     """ Returns a list of supported formats for archiving.
 
@@ -148,17 +161,17 @@ def get_archive_formats():
     formats = []
 
     for name in _ARCHIVE_FORMATS.keys():
-        suffixs = _ARCHIVE_SUFFIXS.get(name, None)
-        suffixs and formats.append((name, suffixs))
+        suffixes = _ARCHIVE_SUFFIXES.get(name, None)
+        suffixes and formats.append((name, suffixes))
 
     return formats
 
-def register_archive_format(name, function, suffixs, extra_kwargs=None):
+def register_archive_format(name, function, suffixes, extra_kwargs=None):
     """ Registers an archive format.
 
     'name' is the name of the format. 'function' is the callable that will
     be used to create archives. 'extra_kwargs' is a dictionary that will
-    be passed as extend arguments to the callable, if provided. 'suffixs'
+    be passed as extend arguments to the callable, if provided. 'suffixes'
     is a sequence containing extensions belong to this format.
     """
     if extra_kwargs is None:
@@ -166,19 +179,19 @@ def register_archive_format(name, function, suffixs, extra_kwargs=None):
 
     if not callable(function):
         raise TypeError, "'%s' object is not callable' % function"
-    if not isinstance(suffixs, list):
-        raise TypeError, "'suffixs' needs to be a sequence"
+    if not isinstance(suffixes, list):
+        raise TypeError, "'suffixes' needs to be a sequence"
     if not isinstance(extra_kwargs, dict):
         raise TypeError, "'extra_kwargs' needs to be a dictionary"
 
-    _ARCHIVE_SUFFIXS[name] = suffixs
+    _ARCHIVE_SUFFIXES[name] = suffixes
     _ARCHIVE_FORMATS[name] = (function, extra_kwargs)
 
 def unregister_archive_format(name):
     """ Unregisters an archive format.
     """
     del _ARCHIVE_FORMATS[name]
-    del _ARCHIVE_SUFFIXS[name]
+    del _ARCHIVE_SUFFIXES[name]
 
 def make_archive(archive_name, target_name):
     """ Create an archive file (eg. tar or zip).
@@ -186,8 +199,8 @@ def make_archive(archive_name, target_name):
     'archive_name' is the name of the file to create.
     'target_name' is the directory / file which we archive.
     """
-    for format, suffixs in _ARCHIVE_SUFFIXS.iteritems():
-        if filter(archive_name.endswith, suffixs):
+    for format, suffixes in _ARCHIVE_SUFFIXES.iteritems():
+        if filter(archive_name.endswith, suffixes):
             archive_format = format
             break
     else:
