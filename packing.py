@@ -34,7 +34,13 @@ def _call_external(*cmdln):
 def _do_gzip(output_name, input_name):
     """ Compress the file with 'gzip' utility.
     """
-    prog = find_executable('pigz') or 'gzip'
+    for util in ('pgzip', 'pigz'):
+        prog = find_executable(util)
+        if prog:
+            break
+    else:
+        prog = 'gzip'
+
     _call_external(prog, '--force', input_name)
 
     gzfile_name = input_name + '.gz'
@@ -46,7 +52,13 @@ def _do_gzip(output_name, input_name):
 def _do_bzip2(output_name, input_name):
     """ Compress the file with 'bzip2' utility.
     """
-    prog = find_executable('pbzip2') or 'bzip2'
+    for util in ('pbzip2',):
+        prog = find_executable(util)
+        if prog:
+            break
+    else:
+        prog = 'bzip2'
+
     _call_external(prog, '--force', input_name)
 
     bzfile_name = input_name + '.bz2'
@@ -58,8 +70,7 @@ def _do_bzip2(output_name, input_name):
 def _do_lzop(output_name, input_name):
     """ Compress the file with 'lzop' utility.
     """
-    prog = 'lzop'
-    _call_external(prog, '--force', '--delete', input_name)
+    _call_external('lzop', '--force', '--delete', input_name)
 
     lzofile_name = input_name + '.lzo'
     if os.path.exists(lzofile_name):
