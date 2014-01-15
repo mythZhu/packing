@@ -8,6 +8,7 @@ from distutils.spawn import find_executable
 __all__ = ['packing',
            'make_archive',
            'get_archive_formats',
+           'get_archive_suffixes',
            'register_archive_format',
            'unregister_archive_format']
 
@@ -124,14 +125,6 @@ def _make_zipfile(archive_name, target_name):
 
     return os.path.exists(archive_name)
 
-_ARCHIVE_SUFFIXES = {
-    'zip'   : ['.zip'],
-    'tar'   : ['.tar'],
-    'lzotar': ['.tzo', '.tar.lzo'],
-    'gztar' : ['.tgz', '.taz', '.tar.gz'],
-    'bztar' : ['.tbz', '.tbz2', '.tar.bz', '.tar.bz2'],
-}
-
 _ARCHIVE_FORMATS = {
     'zip'   : ( _make_zipfile, {} ),
     'tar'   : ( _make_tarball, {'compressor' : None} ),
@@ -140,18 +133,13 @@ _ARCHIVE_FORMATS = {
     'bztar' : ( _make_tarball, {'compressor' : _do_bzip2} ),
 }
 
-def get_archive_suffixes(format=None):
-    """ Return suffixes list of supported format.
-    """
-    suffixes = []
-
-    if not format is None:
-        return _ARCHIVE_SUFFIXES.get(format, [])
-
-    for val in _ARCHIVE_SUFFIXES.itervalues():
-        suffixes.extend(val)
-
-    return suffixes
+_ARCHIVE_SUFFIXES = {
+    'zip'   : ['.zip'],
+    'tar'   : ['.tar'],
+    'lzotar': ['.tzo', '.tar.lzo'],
+    'gztar' : ['.tgz', '.taz', '.tar.gz'],
+    'bztar' : ['.tbz', '.tbz2', '.tar.bz', '.tar.bz2'],
+}
 
 def get_archive_formats():
     """ Returns a list of supported formats for archiving.
@@ -165,6 +153,19 @@ def get_archive_formats():
         suffixes and formats.append((name, suffixes))
 
     return formats
+
+def get_archive_suffixes(format=None):
+    """ Return suffixes list of supported format.
+    """
+    suffixes = []
+
+    if not format is None:
+        return _ARCHIVE_SUFFIXES.get(format, [])
+
+    for val in _ARCHIVE_SUFFIXES.itervalues():
+        suffixes.extend(val)
+
+    return suffixes
 
 def register_archive_format(name, function, suffixes, extra_kwargs=None):
     """ Registers an archive format.
@@ -184,8 +185,8 @@ def register_archive_format(name, function, suffixes, extra_kwargs=None):
     if not isinstance(extra_kwargs, dict):
         raise TypeError, "'extra_kwargs' needs to be a dictionary"
 
-    _ARCHIVE_SUFFIXES[name] = suffixes
     _ARCHIVE_FORMATS[name] = (function, extra_kwargs)
+    _ARCHIVE_SUFFIXES[name] = suffixes
 
 def unregister_archive_format(name):
     """ Unregisters an archive format.
