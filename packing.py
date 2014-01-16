@@ -123,10 +123,10 @@ def _make_tarball(archive_name, target_name, compress=None):
 
     tar.close()
 
-    if compress is not None:
-        _do_compress(archive_name, tarball_name, compress)
-    else:
+    if compress is None:
         shutil.move(tarball_name, archive_name)
+    else:
+        _do_compress(archive_name, tarball_name, compress)
 
     return os.path.exists(archive_name)
 
