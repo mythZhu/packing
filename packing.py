@@ -88,6 +88,9 @@ def _do_compress(output_name, input_name, format):
         'lzo': _do_lzop,
     }
 
+    if not os.path.isfile(input_name):
+        raise OSError, "'%s' is not a file" % input_name
+
     try:
         compressor = compression[format]
     except KeyError, err:
@@ -157,11 +160,11 @@ def _make_zipfile(archive_name, target_name):
     return os.path.exists(archive_name)
 
 _ARCHIVE_FORMATS = {
-    'zip'   : ( _make_zipfile, ['.zip'] ),
-    'tar'   : ( _make_tarball, ['.tar'] ),
-    'lzotar': ( partial(_make_tarball, compress='lzo'), ['.tzo', '.tar.lzo'] ),
-    'gztar' : ( partial(_make_tarball, compress='gz'),  ['.tgz', '.taz', '.tar.gz'] ),
-    'bztar' : ( partial(_make_tarball, compress='bz2'), ['.tbz', '.tbz2', '.tar.bz', '.tar.bz2'] ),
+    'zip'  : ( _make_zipfile, ['.zip'] ),
+    'tar'  : ( _make_tarball, ['.tar'] ),
+    'lztar': ( partial(_make_tarball, compress='lzo'), ['.tzo', '.tar.lzo'] ),
+    'gztar': ( partial(_make_tarball, compress='gz'),  ['.tgz', '.taz', '.tar.gz'] ),
+    'bztar': ( partial(_make_tarball, compress='bz2'), ['.tbz', '.tbz2', '.tar.bz', '.tar.bz2'] ),
 }
 
 def get_archive_formats():
