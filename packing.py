@@ -33,7 +33,7 @@ def _call_external(*cmdln):
 
     return (proc.returncode, outdata, errdata)
 
-def _do_gzip(output_name, input_name):
+def _do_gzip(target):
     """ Compress the file with 'gzip' utility.
     """
     for util in ('pgzip', 'pigz'):
@@ -43,44 +43,45 @@ def _do_gzip(output_name, input_name):
     else:
         prog = 'gzip'
 
-    _call_external(prog, '--force', input_name)
+    _call_external(prog, '--force', target)
 
-    gzfile_name = input_name + '.gz'
-    if os.path.exists(gzfile_name):
-        shutil.move(gzfile_name, output_name)
+    gzfile = target + '.gz'
+    if not os.path.exists(gzfile):
+        raise OSError, "failed to create gzip file '%s'" % gzfile
 
-    return os.path.exists(output_name)
+    return gzfile
 
-def _do_bzip2(output_name, input_name):
+def _do_bzip2(target):
     """ Compress the file with 'bzip2' utility.
     """
     prog = find_executable('pbzip2')
     if not prog:
         prog = 'bzip2'
 
-    _call_external(prog, '--force', input_name)
+    _call_external(prog, '--force', target)
 
-    bzfile_name = input_name + '.bz2'
-    if os.path.exists(bzfile_name):
-        shutil.move(bzfile_name, output_name)
+    bzfile = target + '.bz2'
+    if not os.path.exists(bzfile):
+        raise OSError, "failed to create bzip2 file '%s'" % bzfile
 
-    return os.path.exists(output_name)
+    return bzfile
 
-def _do_lzop(output_name, input_name):
+def _do_lzop(target):
     """ Compress the file with 'lzop' utility.
     """
-    _call_external('lzop', '--force', '--delete', input_name)
+    _call_external('lzop', '--force', '--delete', target)
 
-    lzofile_name = input_name + '.lzo'
-    if os.path.exists(lzofile_name):
-        shutil.move(lzofile_name, output_name)
+    lzofile = target + '.lzo'
+    if not os.path.exists(lzofile):
+        raise OSError, "failed to create lzop file '%s'" % lzofile
 
-    return os.path.exists(output_name)
+    return lzofile
 
-def _do_compress(output_name, input_name, format):
+def _do_compress(target, format):
     """ Compress the file with the proper compressor.
 
-    'format' must be "gz", "bz2" or "lzo".
+    'format' must be "gz", "bz2" or "lzo". Return the path of the
+    compressed file.
     """
     compression = {
         'gz' : _do_gzip,
@@ -88,15 +89,15 @@ def _do_compress(output_name, input_name, format):
         'lzo': _do_lzop,
     }
 
-    if not os.path.isfile(input_name):
-        raise OSError, "'%s' is not a file" % input_name
+    if not os.path.isfile(target):
+        raise OSError, "'%s' is not a file" % target
 
     try:
         compressor = compression[format]
     except KeyError, err:
         raise ValueError, "unknown compression format '%s'" % format
 
-    return compressor(output_name, input_name)
+    return compressor(target)
 
 def _make_tarball(archive_name, target_name, compress=None):
     """ Create a (possibly compressed) tar file from all the files under
@@ -126,10 +127,10 @@ def _make_tarball(archive_name, target_name, compress=None):
 
     tar.close()
 
-    if compress is None:
-        shutil.move(tarball_name, archive_name)
-    else:
-        _do_compress(archive_name, tarball_name, compress)
+    if not compress is None:
+        tarball_name = _do_compress(tarball_name, compress)
+
+    shutil.move(tarball_name, archive_name)
 
     return os.path.exists(archive_name)
 
@@ -196,7 +197,8 @@ def register_archive_format(name, function, extensions):
     """ Register an archive format.
 
     'name' is the name of the archive format. 'function' is the callable
-    that will be used to create archives. 'extensions' is a sequence
+    that will be used to create archives and it should return a boolean
+    value to indicate the result of creation. 'extensions' is a sequence
     containing extensions belong to this format.
     """
     if not callable(function):
