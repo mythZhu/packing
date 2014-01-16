@@ -3,9 +3,11 @@ import shutil
 import tempfile
 import subprocess
 
+from functools import partial
 from distutils.spawn import find_executable
 
 __all__ = ['packing',
+           'compressing',
            'make_archive',
            'get_archive_formats',
            'get_archive_suffixes',
@@ -52,11 +54,8 @@ def _do_gzip(output_name, input_name):
 def _do_bzip2(output_name, input_name):
     """ Compress the file with 'bzip2' utility.
     """
-    for util in ('pbzip2',):
-        prog = find_executable(util)
-        if prog:
-            break
-    else:
+    prog = find_executable('pbzip2')
+    if not prog:
         prog = 'bzip2'
 
     _call_external(prog, '--force', input_name)
@@ -78,13 +77,34 @@ def _do_lzop(output_name, input_name):
 
     return os.path.exists(output_name)
 
-def _make_tarball(archive_name, target_name, compressor=None):
-    """ Create a tar file from all the files under 'target_name' or itself.
+def _do_compress(output_name, input_name, format):
+    """ Compress the file with the proper compressor.
 
-    'compressor' is a function to compress the tar file. It must accept
-    at least two arguments including 'input_name' and 'output_name' and
-    return boolean value indicating the compressor result.
+    'format' must be "gz", "bz2" or "lzo".
     """
+    compression = {
+        'gz' : _do_gzip,
+        'bz2': _do_bzip2,
+        'lzo': _do_lzop,
+    }
+
+    try:
+        compressor = compression[format]
+    except KeyError, err:
+        raise ValueError, "unknown compression format '%s'" % format
+
+    return compressor(output_name, input_name)
+
+def _make_tarball(archive_name, target_name, compress=None):
+    """ Create a (possibly compressed) tar file from all the files under
+    'target_name' or itself.
+
+    'compress' must be None (the default), "gz", "bz2" or "lzo".
+    """
+    if compress not in (None, 'gz', 'bz2', 'lzo'):
+        raise ValueError, \
+            ("bad value for 'compress': must be None, 'gz', 'bz2' or 'lzo'")
+
     archive_dir = os.path.dirname(archive_name)
 
     if not os.path.exists(archive_dir):
@@ -103,8 +123,8 @@ def _make_tarball(archive_name, target_name, compressor=None):
 
     tar.close()
 
-    if compressor and callable(compressor):
-        compressor(output_name=archive_name, input_name=tarball_name)
+    if compress is not None:
+        _do_compress(archive_name, tarball_name, compress)
     else:
         shutil.move(tarball_name, archive_name)
 
@@ -137,95 +157,76 @@ def _make_zipfile(archive_name, target_name):
     return os.path.exists(archive_name)
 
 _ARCHIVE_FORMATS = {
-    'zip'   : ( _make_zipfile, {} ),
-    'tar'   : ( _make_tarball, {'compressor' : None} ),
-    'lzotar': ( _make_tarball, {'compressor' : _do_lzop} ),
-    'gztar' : ( _make_tarball, {'compressor' : _do_gzip} ),
-    'bztar' : ( _make_tarball, {'compressor' : _do_bzip2} ),
-}
-
-_ARCHIVE_SUFFIXES = {
-    'zip'   : ['.zip'],
-    'tar'   : ['.tar'],
-    'lzotar': ['.tzo', '.tar.lzo'],
-    'gztar' : ['.tgz', '.taz', '.tar.gz'],
-    'bztar' : ['.tbz', '.tbz2', '.tar.bz', '.tar.bz2'],
+    'zip'   : ( _make_zipfile, ['.zip'] ),
+    'tar'   : ( _make_tarball, ['.tar'] ),
+    'lzotar': ( partial(_make_tarball, compress='lzo'), ['.tzo', '.tar.lzo'] ),
+    'gztar' : ( partial(_make_tarball, compress='gz'),  ['.tgz', '.taz', '.tar.gz'] ),
+    'bztar' : ( partial(_make_tarball, compress='bz2'), ['.tbz', '.tbz2', '.tar.bz', '.tar.bz2'] ),
 }
 
 def get_archive_formats():
-    """ Returns a list of supported formats for archiving.
+    """ Return a list of supported formats for archiving.
 
-    Each element of the returned sequence is a tuple (name, [.suffix]).
+    Each element of the returned sequence is a tuple (name, extensions).
     """
-    formats = []
-
-    for name in _ARCHIVE_FORMATS.keys():
-        suffixes = _ARCHIVE_SUFFIXES.get(name, None)
-        suffixes and formats.append((name, suffixes))
-
+    formats = [ (name, registry[1]) for name, registry in
+                _ARCHIVE_FORMATS.items() ]
+    formats.sort()
     return formats
 
-def get_archive_suffixes(format=None):
-    """ Return suffixes list of supported format.
+def get_archive_extensions(*formats):
+    """ Return extensions list of supported formats.
     """
-    suffixes = []
+    if len(formats) == 0:
+        formats = _ARCHIVE_FORMATS.keys()
 
-    if not format is None:
-        return _ARCHIVE_SUFFIXES.get(format, [])
+    extensions = []
 
-    for val in _ARCHIVE_SUFFIXES.itervalues():
-        suffixes.extend(val)
+    for fmt in formats:
+        registry = _ARCHIVE_FORMATS.get(fmt, None)
+        if registry:
+            extensions.extend(registry[1])
 
-    return suffixes
+    return extensions
 
-def register_archive_format(name, function, suffixes, extra_kwargs=None):
-    """ Registers an archive format.
+def register_archive_format(name, function, extensions):
+    """ Register an archive format.
 
-    'name' is the name of the format. 'function' is the callable that will
-    be used to create archives. 'extra_kwargs' is a dictionary that will
-    be passed as extend arguments to the callable, if provided. 'suffixes'
-    is a sequence containing extensions belong to this format.
+    'name' is the name of the archive format. 'function' is the callable
+    that will be used to create archives. 'extensions' is a sequence
+    containing extensions belong to this format.
     """
-    if extra_kwargs is None:
-        extra_kwargs = {}
-
     if not callable(function):
         raise TypeError, "'%s' object is not callable' % function"
-    if not isinstance(suffixes, list):
+    if not isinstance(extensions, (list, tuple)):
         raise TypeError, "'suffixes' needs to be a sequence"
-    if not isinstance(extra_kwargs, dict):
-        raise TypeError, "'extra_kwargs' needs to be a dictionary"
 
-    _ARCHIVE_FORMATS[name] = (function, extra_kwargs)
-    _ARCHIVE_SUFFIXES[name] = suffixes
+    _ARCHIVE_FORMATS[name] = (function, extensions)
 
 def unregister_archive_format(name):
-    """ Unregisters an archive format.
+    """ Unregister an archive format.
     """
     del _ARCHIVE_FORMATS[name]
-    del _ARCHIVE_SUFFIXES[name]
 
 def make_archive(archive_name, target_name):
     """ Create an archive file (eg. tar or zip).
 
-    'archive_name' is the name of the file to create.
-    'target_name' is the directory / file which we archive.
+    'archive_name' is the name of the file to create. Its extension will
+    determine archive format. 'target_name' is the directory / file which
+    we archive.
     """
-    for format, suffixes in _ARCHIVE_SUFFIXES.iteritems():
-        if filter(archive_name.endswith, suffixes):
+    for format, registry in _ARCHIVE_FORMATS.iteritems():
+        if filter(archive_name.endswith, registry[1]):
             archive_format = format
+            archive_runner = registry[0]
             break
     else:
-        raise ValueError, "unknown archive suffix '%s'" % archive_name
-
-    try:
-        func, kwargs = _ARCHIVE_FORMATS[archive_format]
-    except KeyError:
-        raise ValueError, "unknown archive format '%s'" % archive_format
+        raise ValueError, "unknown archive extension '%s'" % archive_name
 
     if not os.path.exists(target_name):
         raise OSError, "no such file or directory '%s'" % target_name
 
-    return func(archive_name, target_name, **kwargs)
+    return archive_runner(archive_name, target_name)
 
 packing = make_archive
+compressing = _do_compress
